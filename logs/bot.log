@@ -1,4 +1,0 @@
-2026-10-21 16:41:24,080 INFO Equity $100000.00 | target SPY 100% / BIL 0% | positions {} | orders [{'symbol': 'SPY', 'qty': 127, 'side': 'buy'}]
-2026-10-21 16:45:04,925 INFO Equity $100000.00 | target SPY 100% / BIL 0% | positions {} | orders [{'symbol': 'SPY', 'qty': 127, 'side': 'buy'}]
-2026-10-21 16:45:08,763 INFO buy 127 SPY: filled at 772.98
-2026-10-22 14:54:07,348 INFO Equity $98655.06 | target SPY 100% / BIL 0% | positions {'SPY': 127} | orders none

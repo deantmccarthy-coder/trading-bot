@@ -8,8 +8,12 @@ Safety:
   - Talks only to Alpaca's PAPER endpoint. Live trading needs a deliberate code change.
   - Only ever trades SPY and BIL, never more than 100% of equity, never borrows.
   - Kill switch: create a file named KILL next to this script and the bot does nothing.
-  - Circuit breaker: if equity falls 25% below its high-water mark, the bot stops trading until reset.
-  - Runs at most once per day (use --force to override).
+  - Circuit breaker: if equity falls 25% below its high-water mark (from Alpaca's equity history), the bot stops
+    trading. To re-arm after a review, add a file BREAKER_RESET containing a date (YYYY-MM-DD); the high-water mark
+    is then measured from that date on.
+  - Trades at most once per day: it checks Alpaca for today's bot orders (use --force to override).
+
+The bot keeps no files between runs; Alpaca's order and equity history is the record.
 """
 import argparse
 import datetime as dt
@@ -33,9 +37,10 @@ REBALANCE_BAND = 0.05       # skip trades that would move a weight by less than 
 MAX_DRAWDOWN = 0.25         # circuit breaker
 
 HERE = pathlib.Path(__file__).parent
-STATE_FILE = HERE / "state" / "bot_state.json"
 LOG_DIR = HERE / "logs"
 KILL_FILE = HERE / "KILL"
+BREAKER_RESET_FILE = HERE / "BREAKER_RESET"
+ORDER_PREFIX = "volbot"
 
 log = logging.getLogger("bot")
 
@@ -47,13 +52,22 @@ def api(method, path, **kwargs):
     return r.json() if r.text else None
 
 
-def load_state():
-    return json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
+def traded_today(today):
+    """True if Alpaca already has an order from this bot dated today."""
+    orders = api("GET", "/v2/orders", params={"status": "all", "after": f"{today - dt.timedelta(days=1)}T23:59:59Z",
+                                               "limit": 100})
+    return any((o.get("client_order_id") or "").startswith(f"{ORDER_PREFIX}-{today}") for o in orders)
 
 
-def save_state(state):
-    STATE_FILE.parent.mkdir(exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+def peak_equity(current):
+    """High-water mark from Alpaca's daily equity history (optionally only since the BREAKER_RESET date)."""
+    hist = api("GET", "/v2/account/portfolio/history", params={"period": "1A", "timeframe": "1D"})
+    since = None
+    if BREAKER_RESET_FILE.exists():
+        since = dt.datetime.fromisoformat(BREAKER_RESET_FILE.read_text().strip()).replace(tzinfo=dt.timezone.utc)
+    values = [e for t, e in zip(hist.get("timestamp") or [], hist.get("equity") or [])
+              if e and (since is None or dt.datetime.fromtimestamp(t, dt.timezone.utc) >= since)]
+    return max(values + [current])
 
 
 def target_exposure(today):
@@ -94,8 +108,7 @@ def wait_for_fill(order_id, timeout=120):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="print the plan, place no orders")
-    parser.add_argument("--force", action="store_true", help="run even if it already ran today")
-    parser.add_argument("--reset-breaker", action="store_true", help="re-arm after the circuit breaker tripped")
+    parser.add_argument("--force", action="store_true", help="trade even if the bot already traded today")
     args = parser.parse_args()
 
     LOG_DIR.mkdir(exist_ok=True)
@@ -106,27 +119,21 @@ def main():
         log.warning("KILL file present: doing nothing.")
         return
 
-    state = load_state()
     clock = api("GET", "/v2/clock")
     if not clock["is_open"]:
         log.info("Market is closed (next open %s). Nothing to do.", clock["next_open"])
         return
     today = dt.date.fromisoformat(clock["timestamp"][:10])
-    if state.get("last_run") == today.isoformat() and not args.force and not args.dry_run:
-        log.info("Already ran today. Use --force to run again.")
+    if traded_today(today) and not args.force and not args.dry_run:
+        log.info("Already traded today. Nothing to do.")
         return
 
     account = api("GET", "/v2/account")
     equity = float(account["equity"])
-    if args.reset_breaker:
-        state.pop("breaker_tripped", None)
-        state["peak_equity"] = equity
-    peak = max(state.get("peak_equity", equity), equity)
-    if state.get("breaker_tripped") or equity < peak * (1 - MAX_DRAWDOWN):
-        state["breaker_tripped"] = True
-        save_state({**state, "peak_equity": peak})
+    peak = peak_equity(equity)
+    if equity < peak * (1 - MAX_DRAWDOWN):
         log.error("CIRCUIT BREAKER: equity %.2f is more than %.0f%% below peak %.2f. Not trading. "
-                  "Review, then run with --reset-breaker.", equity, MAX_DRAWDOWN * 100, peak)
+                  "Review, then add a BREAKER_RESET file to re-arm.", equity, MAX_DRAWDOWN * 100, peak)
         return
 
     positions = {p["symbol"]: int(float(p["qty"])) for p in api("GET", "/v2/positions")}
@@ -151,14 +158,11 @@ def main():
             assert o["symbol"] in (SYMBOL, CASH)
             assert o["qty"] * prices[o["symbol"]] <= equity, "order larger than the whole account"
             placed = api("POST", "/v2/orders", json={**o, "type": "market", "time_in_force": "day",
-                                                      "client_order_id": f"volbot-{today}-{o['symbol']}-{o['side']}"})
+                                                      "client_order_id": f"{ORDER_PREFIX}-{today}-{o['symbol']}-{o['side']}"})
             result = wait_for_fill(placed["id"])
             log.info("%s %s %s: %s at %s", o["side"], o["qty"], o["symbol"], result["status"],
                      result.get("filled_avg_price"))
             o["status"], o["fill_price"] = result["status"], result.get("filled_avg_price")
-        state["last_run"] = today.isoformat()
-        state["peak_equity"] = peak
-        save_state(state)
 
     with open(LOG_DIR / "decisions.jsonl", "a") as f:
         f.write(json.dumps(decision) + "\n")
