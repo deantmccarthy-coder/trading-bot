@@ -43,7 +43,7 @@ def _fetch(symbols, start, end, feed, timeframe="1Day"):
         r.raise_for_status()
         body = r.json()
         for sym, rows in (body.get("bars") or {}).items():
-            bars[sym].extend(rows)
+            bars.setdefault(sym, []).extend(rows)
         token = body.get("next_page_token")
         if not token:
             break

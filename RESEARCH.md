@@ -49,3 +49,11 @@ average.
 ## Multiple testing
 Twelve hypotheses are tested. At this count, one or two may pass by luck alone, so only the strongest
 passer(s) go to the holdout, and only results that hold up there count.
+
+## H6. Gap and go without look-ahead (added after H4 results, because H4a passed but has a known look-ahead)
+H4a's volume filter uses the whole day's volume, which is not known at the open. These versions use only
+information available at entry. Same universe, same 4% gap-up rule, same costs, same pass criteria as H4.
+- **H6a No volume filter:** buy every 4%+ gap-up at the open, sell at the close.
+- **H6b Opening-volume filter:** after the first 15 minutes (9:30-9:45), keep only stocks whose 15-minute volume
+  is at least 20% of their 20-day average daily volume; buy at 9:45 (the first 15-minute bar's close), sell at the
+  close.
