@@ -23,11 +23,11 @@ def _headers():
     return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
 
 
-def _fetch(symbols, start, end, feed):
+def _fetch(symbols, start, end, feed, timeframe="1Day"):
     """Download split/dividend-adjusted daily bars for many symbols, following pagination."""
     params = {
         "symbols": ",".join(symbols),
-        "timeframe": "1Day",
+        "timeframe": timeframe,
         "start": start,
         "end": end,
         "adjustment": "all",
@@ -54,7 +54,8 @@ def _fetch(symbols, start, end, feed):
         if not rows:
             continue
         df = pd.DataFrame(rows)
-        df["date"] = pd.to_datetime(df["t"]).dt.tz_convert("America/New_York").dt.normalize().dt.tz_localize(None)
+        ts = pd.to_datetime(df["t"]).dt.tz_convert("America/New_York")
+        df["date"] = (ts.dt.normalize() if timeframe == "1Day" else ts).dt.tz_localize(None)
         df = df.rename(columns={"o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"})
         out[sym] = df.set_index("date")[["open", "high", "low", "close", "volume"]].sort_index()
     return out
@@ -91,3 +92,21 @@ def load_daily(symbols, start, end, feed="sip"):
 def to_panel(data, field):
     """One wide DataFrame (dates x symbols) for a single field such as 'close'."""
     return pd.DataFrame({sym: df[field] for sym, df in data.items()}).sort_index()
+
+
+def load_intraday(symbols, start, end, timeframe="5Min", feed="sip"):
+    """Regular-hours (9:30-16:00 New York) intraday bars, cached to disk like load_daily."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    result = {}
+    for sym in symbols:
+        path = CACHE_DIR / f"{sym}_{feed}_{timeframe}_{start}_{end}.csv"
+        if path.exists():
+            df = pd.read_csv(path, index_col="date", parse_dates=True)
+        else:
+            df = _fetch([sym], start, end, feed, timeframe).get(sym)
+            if df is None:
+                continue
+            df = df.between_time("09:30", "15:55")
+            df.to_csv(path)
+        result[sym] = df
+    return result
