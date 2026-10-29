@@ -57,3 +57,24 @@ information available at entry. Same universe, same 4% gap-up rule, same costs, 
 - **H6b Opening-volume filter:** after the first 15 minutes (9:30-9:45), keep only stocks whose 15-minute volume
   is at least 20% of their 20-day average daily volume; buy at 9:45 (the first 15-minute bar's close), sell at the
   close.
+
+## Results (development / validation), recorded after running
+| Hypothesis | Result | Pass |
+|---|---|---|
+| H1a Turn of month | Sharpe 0.66 / 0.33 vs SPY 1.00 / 0.57 | no |
+| H1b Overnight | Sharpe -1.12 / -1.99 (daily costs) | no |
+| H1c Pre-holiday | Sharpe 0.39 / 2.01 vs SPY 1.00 / 0.57 | no |
+| H2 Sector weekly reversal | Sharpe 0.46 / 0.36 vs basket 0.91 / 0.57 | no |
+| H3 Sector momentum | Sharpe 0.71 / 0.72 vs basket 0.91 / 0.57 | no |
+| H4a Gap and go (up), full-day volume | +0.54% / +0.83% per trade, t 2.38 / 2.39 | yes, but look-ahead |
+| H4b Gap fade (up) | -0.94% / -1.23% | no |
+| H4c Gap down, short | +0.74% / +0.15%, t 4.01 / 1.42 | no |
+| H4d Gap-down bounce | -1.14% / -0.55% | no |
+| H4e Post-gap drift up, 5 days | -0.45% / -0.57% | no |
+| H4f Post-gap drift down, 5 days | +0.10% / -0.55% | no |
+| H5 Large-cap weekly reversal | Sharpe 0.18 / 0.35 vs basket 0.97 / 0.35 | no |
+| H6a Gap and go, no volume filter | -0.15% / -0.32%, t -9.1 / -5.1 | no |
+| H6b Gap and go, opening volume, entry 9:45 | -0.38% / -0.18%, t -5.1 / -1.1 | no |
+
+Conclusion: H4a's edge came from the same-day volume look-ahead; with only information available at entry
+(H6a, H6b) gap-and-go loses money. No hypothesis passed honestly, so the holdout was not opened.

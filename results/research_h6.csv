@@ -1,0 +1,5 @@
+hypothesis,period,trades,days,mean_per_trade,win_rate,t_stat_daily,PASS
+"H6a Gap and go, no volume filter",development,32557,1474,-0.0015224920981264847,0.4646005467334214,-9.14487667600615,
+"H6a Gap and go, no volume filter",validation,17509,752,-0.0031751447827850186,0.4679878919412873,-5.056152676773419,
+"H6b Gap and go, opening-volume filter, entry 9:45",development,11112,1450,-0.003820820708778462,0.44870410367170627,-5.135266033757225,
+"H6b Gap and go, opening-volume filter, entry 9:45",validation,7018,746,-0.0018200900425097992,0.4727842690225135,-1.1004238514447795,
