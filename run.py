@@ -12,7 +12,7 @@ import pandas as pd
 
 import backtest
 from data import load_daily, to_panel
-from strategies import ETF_STRATEGIES, RISK_STRATEGIES, STRATEGIES
+from strategies import ETF_STRATEGIES, RISK_STRATEGIES, SHORT_STRATEGIES, STRATEGIES
 
 # Today's large caps: convenient, but survivorship-biased (we already know these became winners).
 STOCKS = [
@@ -35,6 +35,7 @@ UNIVERSES = {
     "stocks": (STOCKS, STRATEGIES),
     "etfs": (ETFS, ETF_STRATEGIES),
     "risk": (["SPY", "BIL", "IEF"], RISK_STRATEGIES),  # BIL = T-bills, the "cash" that still earns interest
+    "short": (["SPY", "BIL", "SH"], SHORT_STRATEGIES),  # SH = -1x daily S&P 500 inverse ETF
 }
 
 # Decided before looking at any results. Strategies are designed on DEVELOPMENT, checked on VALIDATION,

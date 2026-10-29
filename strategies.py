@@ -135,6 +135,44 @@ def trend_and_vol(closes, sym="SPY", cash="BIL", sma=200, target=0.15):
     return _to_weights(closes, exp, sym, cash)
 
 
+def bear_market(closes, sym="SPY", sma=200, min_vol=None):
+    """1 on days SPY closes below its 200-day average (and, optionally, 20-day volatility is above min_vol)."""
+    c = closes[sym]
+    avg = c.rolling(sma).mean()
+    bear = (c < avg) & avg.notna()
+    if min_vol is not None:
+        bear &= c.pct_change().rolling(20).std() * np.sqrt(252) > min_vol
+    return bear.astype(float)
+
+
+def long_short_trend(closes, sym="SPY", inverse="SH"):
+    """100% SPY above its 200-day average, 100% in the inverse ETF below it."""
+    bear = bear_market(closes, sym)
+    w = pd.DataFrame(0.0, index=closes.index, columns=closes.columns)
+    w[sym], w[inverse] = 1 - bear, bear
+    return w
+
+
+def defensive_short(closes, sym="SPY", inverse="SH", cash="BIL", target=0.15, min_vol=None):
+    """The volatility-targeting bot, but in bear markets hold the inverse ETF (vol-sized) instead of SPY."""
+    bear = bear_market(closes, sym, min_vol=min_vol)
+    exp = vol_exposure(closes, sym, target)
+    w = pd.DataFrame(0.0, index=closes.index, columns=closes.columns)
+    w[sym] = exp * (1 - bear)
+    w[inverse] = exp * bear
+    w[cash] = (1 - exp) * closes[cash].notna()
+    return w
+
+
+SHORT_STRATEGIES = {
+    "SPY buy & hold (benchmark)": lambda c: buy_and_hold(c, "SPY"),
+    "Current bot: vol target 15% (benchmark)": vol_target,
+    "A. Long/short trend (SPY or SH)": long_short_trend,
+    "B. Defensive short (bear = below 200-day)": defensive_short,
+    "C. Strict defensive short (bear + vol > 20%)": lambda c: defensive_short(c, min_vol=0.20),
+}
+
+
 # Hold SPY, step into T-bills (BIL) when risk is high. Settings fixed before testing.
 RISK_STRATEGIES = {
     "SPY buy & hold (benchmark)": lambda c: buy_and_hold(c, "SPY"),
